@@ -14,28 +14,24 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, TextIO
 
-from auditor.contracts.enums import JobStatus
 from auditor.contracts.events import JobEvent
 from auditor.contracts.jobs import AuditOptions, AuditRequest
 from auditor.ingest.paths import FOUNDRY_CONFIG_NAME, map_source_paths
+from auditor.observability.exit_codes import (  # noqa: F401 — re-export for tests/scripts
+    EXIT_CANCELLED,
+    EXIT_JOB_FAILED,
+    EXIT_OK,
+    EXIT_TIMED_OUT,
+    EXIT_USAGE,
+    exit_code_for_status,
+)
+from auditor.observability.logging import bound_log_context, configure_logging
 from auditor.pipeline.context import JobContext
 from auditor.pipeline.events import EventBus
 from auditor.pipeline.metrics import compute_metrics, metrics_to_dict
 from auditor.pipeline.profiles import AuditProfile, profile_from_env
 from auditor.pipeline.runner import PipelineRunner, build_default_registry
 from auditor.security.config import SecurityConfig
-
-EXIT_OK = 0
-EXIT_JOB_FAILED = 1
-EXIT_USAGE = 2
-
-_TERMINAL_FAIL = frozenset(
-    {
-        JobStatus.FAILED,
-        JobStatus.TIMED_OUT,
-        JobStatus.CANCELLED,
-    }
-)
 
 
 def find_foundry_root(path: Path) -> Path | None:
@@ -210,17 +206,20 @@ def cmd_run(
         _print_event(event, as_json=as_json, out=stdout)
 
     bus.subscribe(ctx.job_id, _on_event)
-    try:
-        if not as_json:
-            print(
-                f"job_id={ctx.job_id} profile={prof.value} files={len(sources)}",
-                file=stdout,
-            )
-        runner.run(ctx)
-    finally:
-        bus.unsubscribe(ctx.job_id, _on_event)
+    with bound_log_context(job_id=ctx.job_id, profile=prof.value):
+        try:
+            if not as_json:
+                print(
+                    f"job_id={ctx.job_id} profile={prof.value} files={len(sources)}",
+                    file=stdout,
+                )
+            runner.run(ctx)
+        finally:
+            bus.unsubscribe(ctx.job_id, _on_event)
 
     status_payload = _final_status_dict(ctx)
+    # Always emit a single machine-readable result line for orchestrators when
+    # --json is set; human mode keeps the familiar status line.
     if as_json:
         stdout.write(json.dumps(status_payload, indent=None) + "\n")
     else:
@@ -235,12 +234,7 @@ def cmd_run(
         if status_payload.get("manifest"):
             print(f"manifest={status_payload['manifest']}", file=stdout)
 
-    if ctx.status is JobStatus.COMPLETED:
-        return EXIT_OK
-    if ctx.status in _TERMINAL_FAIL:
-        return EXIT_JOB_FAILED
-    # Non-terminal is unexpected after run(); treat as failure.
-    return EXIT_JOB_FAILED
+    return exit_code_for_status(ctx.status)
 
 
 def _format_metrics_human(data: dict[str, Any]) -> str:
@@ -345,7 +339,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entry point. Returns process exit code (0 / 1 / 2)."""
+    """CLI entry point. Returns process exit code (0 / 1 / 2 / 3 / 4)."""
+    # JSON application logs when AUDIT_LOG_FORMAT=json (events still use --json).
+    configure_logging()
     parser = build_parser()
     try:
         args = parser.parse_args(list(argv) if argv is not None else None)

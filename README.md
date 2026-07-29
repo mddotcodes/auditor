@@ -85,6 +85,7 @@ OpenAPI contract: [`schemas/openapi.yaml`](schemas/openapi.yaml).
 | Fuzz report | Forge test results under `artifacts/fuzz/` when fuzz runs |
 | Bytecode fingerprint | Compiler settings + hashes for post-deploy matching |
 | Live progress | Stage events on CLI stdout (or JSON lines); HTTP + WebSocket on the server |
+| Observability | `AUDIT_LOG_FORMAT=json`, `GET /metrics` (Prometheus), CLI exit codes `0–4` — [docs/observability.md](docs/observability.md) |
 
 Sample contracts: [`examples/contracts/`](examples/contracts/). Sample artifact shapes: [`examples/artifacts/`](examples/artifacts/), schemas under [`schemas/`](schemas/).
 
@@ -168,6 +169,8 @@ Provider selection (first key wins): `OPENROUTER_API_KEY` → `OPENAI_API_KEY` �
 | `AUDITOR_IMAGE` | `auditor:local` | Docker image for user-audit / run-local |
 | `AUDIT_HOST` / `AUDIT_PORT` | `0.0.0.0` / `8080` | HTTP bind for `auditor-serve` |
 | `AUDIT_API_TOKEN` | — | Optional bearer token for the API |
+| `AUDIT_LOG_FORMAT` | `text` | `json` for structured stdout (cloud logs) |
+| `AUDIT_METRICS_ENABLED` | `true` | Prometheus `GET /metrics` (set `false` to disable) |
 
 Never commit secrets. Copy [`.env.example`](.env.example) to `.env`.
 

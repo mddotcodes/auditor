@@ -26,8 +26,58 @@ tags:
   - name: jobs
   - name: artifacts
   - name: stream
+  - name: ops
 
 paths:
+  /healthz:
+    get:
+      tags: [ops]
+      operationId: healthz
+      summary: Liveness / readiness probe
+      security: []
+      responses:
+        "200":
+          description: Engine process is up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, version]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  version:
+                    type: string
+
+  /metrics:
+    get:
+      tags: [ops]
+      operationId: prometheusMetrics
+      summary: Prometheus text metrics (optional)
+      description: |
+        Process-local Prometheus exposition for cloud scrapers.
+        Unauthenticated by design — bind privately. Disable with
+        `AUDIT_METRICS_ENABLED=false` (returns 404).
+      security: []
+      responses:
+        "200":
+          description: Prometheus text format 0.0.4
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: |
+                # HELP auditor_build_info Auditor engine build metadata
+                # TYPE auditor_build_info gauge
+                auditor_build_info{version="0.0.1"} 1
+        "404":
+          description: Metrics disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+
   /v1/audit:
     post:
       tags: [audit]

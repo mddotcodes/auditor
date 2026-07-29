@@ -165,6 +165,7 @@ class PipelineRunner:
                     progress=progress,
                 )
                 stage_started = datetime.now(UTC)
+                stage_t0 = time.monotonic()
                 # Stash remaining budget for stages that care
                 ctx.meta["stage_timeout_seconds"] = min(
                     remaining,
@@ -179,6 +180,13 @@ class PipelineRunner:
                         message=str(exc),
                         hard_fail=not stage.optional,
                     )
+
+                try:
+                    from auditor.observability.prometheus import get_metrics
+
+                    get_metrics().stage_duration(stage.name, time.monotonic() - stage_t0)
+                except Exception:  # pragma: no cover - metrics must never break pipeline
+                    pass
 
                 ctx.record_stage(
                     js,

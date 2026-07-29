@@ -52,6 +52,8 @@ Environment:
   AUDIT_API_TOKEN          Optional API bearer / X-API-Token
   AUDIT_MAX_INFLIGHT_JOBS  Concurrent audit jobs (default 2)
   AUDIT_HOST / AUDIT_PORT  Bind address for serve (0.0.0.0:8080)
+  AUDIT_LOG_FORMAT         text|json structured logs (prefer json in cloud)
+  AUDIT_METRICS_ENABLED    true|false — GET /metrics Prometheus scrape
 EOF
 }
 

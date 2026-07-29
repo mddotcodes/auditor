@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 from auditor import __version__
 from auditor.api.auth import require_api_token
@@ -17,6 +17,8 @@ from auditor.api.serializers import to_artifacts, to_job_status
 from auditor.api.state import AppState
 from auditor.contracts.enums import JobStatus
 from auditor.contracts.jobs import AuditRequest, AuditSubmitResponse
+from auditor.observability.logging import configure_logging
+from auditor.observability.prometheus import get_metrics, metrics_enabled
 from auditor.pipeline.profiles import AuditProfile, profile_from_env
 
 logger = logging.getLogger(__name__)
@@ -37,10 +39,17 @@ def create_app(*, state: AppState | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app_state: AppState = app.state.auditor_state
         logger.info(
-            "auditor API starting (max_inflight=%s job_root=%s auth=%s)",
+            "auditor API starting (max_inflight=%s job_root=%s auth=%s metrics=%s)",
             app_state.max_inflight,
             app_state.job_root,
             bool(app_state.api_token),
+            metrics_enabled(),
+            extra={
+                "max_inflight": app_state.max_inflight,
+                "job_root": str(app_state.job_root),
+                "auth_enabled": bool(app_state.api_token),
+                "metrics_enabled": metrics_enabled(),
+            },
         )
         try:
             yield
@@ -60,6 +69,30 @@ def create_app(*, state: AppState | None = None) -> FastAPI:
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok", "version": __version__}
+
+    @app.get("/metrics", response_class=PlainTextResponse, include_in_schema=True)
+    def prometheus_metrics() -> Response:
+        """Prometheus text exposition for cloud scrapers (optional).
+
+        Disabled with ``AUDIT_METRICS_ENABLED=false`` (returns 404).
+        Unauthenticated by design so sidecar scrapers need no API token —
+        bind the server to a private network in production.
+        """
+        if not metrics_enabled():
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={
+                    "error": {
+                        "code": "metrics_disabled",
+                        "message": "Set AUDIT_METRICS_ENABLED=true to enable /metrics",
+                    }
+                },
+            )
+        body = get_metrics().render(version=__version__)
+        return Response(
+            content=body,
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
 
     @app.post(
         "/v1/audit",
@@ -159,14 +192,19 @@ def main() -> None:
     """CLI entry: ``auditor-serve`` / ``python -m auditor.api.app``."""
     import uvicorn
 
+    # Prefer JSON logs in cloud; local text if AUDIT_LOG_FORMAT unset.
+    configure_logging()
     host = os.environ.get("AUDIT_HOST", "0.0.0.0")
     port = int(os.environ.get("AUDIT_PORT", "8080"))
+    log_level = os.environ.get("AUDIT_LOG_LEVEL", "info")
     uvicorn.run(
         "auditor.api.app:create_app",
         factory=True,
         host=host,
         port=port,
-        log_level=os.environ.get("AUDIT_LOG_LEVEL", "info"),
+        log_level=log_level,
+        # Rely on configure_logging() root handlers (JSON or text).
+        log_config=None,
     )
 
 

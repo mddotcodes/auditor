@@ -166,6 +166,90 @@ resources:
 # network: deny via NetworkPolicy default-deny + optional LLM egress policy
 ```
 
+## AWS Fargate (recommended task settings)
+
+Fargate does not support every Docker flag 1:1; map the intent:
+
+| Docker intent | Fargate / ECS |
+|---------------|---------------|
+| Non-root `10001` | Task definition `user: "10001:10001"` |
+| Memory / CPU | Task size (e.g. `2048` CPU units, `4096` MiB) |
+| Read-only root | `readonlyRootFilesystem: true` |
+| Drop capabilities | Linux parameters: drop `ALL` (platform support varies) |
+| No new privileges | Prefer without privileged; do not request elevated |
+| Network deny | Private subnet + security group deny-all egress; allow only LLM/HTTPS when needed |
+| Job isolation | **One audit job per task** (do not multiplex tenants) |
+| Wall-clock budget | `AUDIT_TIMEOUT_SECONDS` + ECS `stopTimeout` / task timeout |
+| Logs | `AUDIT_LOG_FORMAT=json` → awslogs / FireLens |
+| Metrics | Sidecar or AMP scrapes task IP `:8080/metrics` when using `serve` |
+
+Example task environment (one-shot CLI job):
+
+```json
+{
+  "environment": [
+    { "name": "AUDIT_LOG_FORMAT", "value": "json" },
+    { "name": "AUDIT_TIMEOUT_SECONDS", "value": "300" },
+    { "name": "AUDIT_JOB_ROOT", "value": "/work/jobs" },
+    { "name": "AUDIT_NETWORK_POLICY", "value": "deny" },
+    { "name": "AUDIT_PROFILE", "value": "static" }
+  ],
+  "user": "10001:10001",
+  "readonlyRootFilesystem": true
+}
+```
+
+Mount a writable volume (EFS or ephemeral) at `/work` for job artifacts. Prefer
+**no public IP** for static audits; add egress only for LLM profiles.
+
+Command override for batch:
+
+```text
+auditor-cli run /corpus/Contract.sol --profile static --no-llm --json --job-root /work/jobs
+```
+
+Exit codes: `0` completed, `1` failed, `2` usage, `3` timed out, `4` cancelled
+(see [`../observability.md`](../observability.md)).
+
+## Google Cloud Run (Service vs Job)
+
+### Cloud Run **Job** (one-shot audit — preferred for batch)
+
+- Set container command to `auditor-cli run … --json` (or entrypoint + args).
+- CPU / memory: start at **2 vCPU / 2 GiB**; raise for large corpora.
+- Timeout: match or exceed `AUDIT_TIMEOUT_SECONDS` (Cloud Run job task timeout).
+- Secrets: mount LLM keys as Secret Manager env vars (never bake into image).
+- Volumes: GCS fuse or mounted bucket for sources + job output if needed.
+- Network: Serverless VPC connector + firewall deny egress for static; allow
+  HTTPS to LLM providers only when `AUDIT_PROFILE=default` and keys present.
+- Logs: `AUDIT_LOG_FORMAT=json` → Cloud Logging (JSON payload parseable).
+- Success criteria: **task exit code `0`**.
+
+### Cloud Run **Service** (long-lived `serve` API)
+
+```bash
+# Conceptual — adjust project/region/image
+gcloud run deploy auditor-engine \
+  --image REGION-docker.pkg.dev/PROJECT/auditor/auditor:TAG \
+  --port 8080 \
+  --cpu 2 --memory 2Gi \
+  --no-allow-unauthenticated \
+  --set-env-vars "AUDIT_LOG_FORMAT=json,AUDIT_METRICS_ENABLED=true,AUDIT_TIMEOUT_SECONDS=300,AUDIT_MAX_INFLIGHT_JOBS=1" \
+  --max-instances 10 \
+  --concurrency 1
+```
+
+| Setting | Recommendation |
+|---------|----------------|
+| `--concurrency` | **1** (one heavy job per instance; pair with `AUDIT_MAX_INFLIGHT_JOBS=1`) |
+| CPU always allocated | Prefer **yes** for forge/slither CPU spikes |
+| Auth | Cloud IAM / internal mesh; optional `AUDIT_API_TOKEN` inside app |
+| `/metrics` | Scrape via private networking; do not put metrics on a public URL |
+| `/healthz` | Use as startup/liveness probe path |
+| Execution env | 2nd gen; non-root image user already `10001` |
+
+Do **not** use `--privileged` or host Docker socket on either platform.
+
 ## Verification checklist
 
 - [ ] `docker run` without network can still `forge --version` / `slither --version`

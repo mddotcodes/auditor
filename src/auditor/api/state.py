@@ -8,6 +8,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from auditor.observability.prometheus import get_metrics
 from auditor.pipeline.context import JobContext
 from auditor.pipeline.events import EventBus
 from auditor.pipeline.runner import PipelineRunner, build_default_registry
@@ -66,18 +67,28 @@ class AppState:
             if self._inflight >= self.max_inflight:
                 return False
             self._inflight += 1
+            get_metrics().set_inflight(self._inflight)
             return True
 
     def release_slot(self) -> None:
         with self._lock:
             self._inflight = max(0, self._inflight - 1)
+            get_metrics().set_inflight(self._inflight)
 
     def submit_job(self, ctx: JobContext) -> Future[JobContext]:
         """Run pipeline in background; releases concurrency slot when done."""
+        profile = ctx.profile.value
+        get_metrics().job_started(profile=profile)
 
         def _run() -> JobContext:
             try:
-                return self.runner.run(ctx)
+                result = self.runner.run(ctx)
+                status = result.status.value if result.status is not None else "failed"
+                get_metrics().job_finished(status=status, profile=profile)
+                return result
+            except Exception:
+                get_metrics().job_finished(status="failed", profile=profile)
+                raise
             finally:
                 self.release_slot()
 
