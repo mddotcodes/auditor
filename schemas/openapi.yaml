@@ -1,0 +1,331 @@
+openapi: 3.1.0
+info:
+  title: Auditor Execution Engine API
+  version: 1.0.0
+  summary: Isolated EVM smart contract audit engine
+  description: |
+    Versioned HTTP/WebSocket surface for the open-source Auditor container.
+
+    **Contract version:** `schema_version: "1"` on job/event/manifest payloads.
+    Breaking changes require a new API major path (`/v2`) and/or schema version bump.
+
+    Pipeline stages (frozen): `materialize` → `compile` → `static` → `llm_tests` →
+    `fuzz` → `finalize`. Stages `llm_tests` / `fuzz` may be skipped in static-only mode.
+
+    Job terminal statuses: `completed` | `failed` | `timed_out` | `cancelled`.
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local engine (Phase 5+ HTTP server)
+
+tags:
+  - name: audit
+  - name: jobs
+  - name: artifacts
+  - name: stream
+
+paths:
+  /v1/audit:
+    post:
+      tags: [audit]
+      operationId: submitAudit
+      summary: Submit Solidity sources (or a Gist URL) for audit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuditRequest"
+            examples:
+              inlineSources:
+                summary: Inline multi-file sources
+                value:
+                  sources:
+                    src/Token.sol: |
+                      // SPDX-License-Identifier: MIT
+                      pragma solidity ^0.8.20;
+                      contract Token {}
+                  options:
+                    enable_llm_tests: false
+                    auto_fix_compile: false
+      responses:
+        "202":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditSubmitResponse"
+              example:
+                job_id: "019fab70-0000-7000-8000-000000000001"
+                status: queued
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+        "429":
+          description: Too many concurrent jobs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+
+  /v1/jobs/{job_id}:
+    get:
+      tags: [jobs]
+      operationId: getJob
+      summary: Job status and stage summary
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Current job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobStatusResponse"
+        "404":
+          description: Unknown job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+
+  /v1/jobs/{job_id}/artifacts:
+    get:
+      tags: [artifacts]
+      operationId: listJobArtifacts
+      summary: List artifact entries (manifest echo)
+      description: |
+        Returns artifact metadata from the job manifest when available.
+        A zip download may be added later without breaking this JSON shape
+        (e.g. via `Accept: application/zip`).
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Artifact listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDownloadResponse"
+        "404":
+          description: Unknown job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HttpError"
+
+  /v1/ws/jobs/{job_id}:
+    get:
+      tags: [stream]
+      operationId: streamJobEvents
+      summary: WebSocket job event stream
+      description: |
+        Upgrade to WebSocket. Server sends JSON text frames matching
+        `schemas/job-event.schema.json`. Late subscribers may receive a
+        buffered replay then live events. Stream closes after a terminal event.
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "101":
+          description: Switching Protocols (WebSocket)
+        "404":
+          description: Unknown job
+
+components:
+  parameters:
+    JobId:
+      name: job_id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+
+  schemas:
+    SchemaVersion:
+      type: string
+      const: "1"
+
+    JobStatus:
+      type: string
+      enum:
+        - queued
+        - running
+        - completed
+        - failed
+        - timed_out
+        - cancelled
+
+    JobStage:
+      type: string
+      enum:
+        - materialize
+        - compile
+        - static
+        - llm_tests
+        - fuzz
+        - finalize
+
+    EventLevel:
+      type: string
+      enum: [debug, info, warn, error]
+
+    TerminalReason:
+      type: string
+      enum: [completed, failed, timed_out, cancelled]
+
+    AuditOptions:
+      type: object
+      additionalProperties: false
+      properties:
+        auto_fix_compile:
+          type: boolean
+          default: false
+        enable_llm_tests:
+          type: boolean
+          default: true
+        timeout_seconds:
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 3600
+
+    AuditRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        sources:
+          type: [object, "null"]
+          additionalProperties:
+            type: string
+          description: Map of relative path → source text
+        gist_url:
+          type: [string, "null"]
+        options:
+          $ref: "#/components/schemas/AuditOptions"
+      description: Exactly one of `sources` or `gist_url` must be provided.
+
+    AuditSubmitResponse:
+      type: object
+      additionalProperties: false
+      required: [job_id, status]
+      properties:
+        job_id:
+          type: string
+        status:
+          $ref: "#/components/schemas/JobStatus"
+
+    ErrorBody:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    JobStatusResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - job_id
+        - status
+        - created_at
+        - updated_at
+      properties:
+        schema_version:
+          $ref: "#/components/schemas/SchemaVersion"
+        job_id:
+          type: string
+        status:
+          $ref: "#/components/schemas/JobStatus"
+        stage:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/JobStage"
+        progress:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 100
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/ErrorBody"
+        artifact_manifest_path:
+          type: [string, "null"]
+
+    ArtifactDownloadResponse:
+      type: object
+      additionalProperties: false
+      required: [job_id, status, manifest_available, artifacts]
+      properties:
+        job_id:
+          type: string
+        status:
+          $ref: "#/components/schemas/JobStatus"
+        manifest_available:
+          type: boolean
+        artifacts:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    JobEvent:
+      type: object
+      additionalProperties: false
+      required: [schema_version, job_id, seq, ts, level, message]
+      properties:
+        schema_version:
+          $ref: "#/components/schemas/SchemaVersion"
+        job_id:
+          type: string
+        seq:
+          type: integer
+          minimum: 0
+        ts:
+          type: string
+          format: date-time
+        stage:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/JobStage"
+        level:
+          $ref: "#/components/schemas/EventLevel"
+        message:
+          type: string
+        progress:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 100
+        data:
+          type: object
+          additionalProperties: true
+        terminal:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/TerminalReason"
+
+    HttpError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorBody"

@@ -1,0 +1,137 @@
+{
+  "schema_version": "1",
+  "job_id": "019fab70-0000-7000-8000-000000000001",
+  "created_at": "2026-07-29T12:00:00Z",
+  "updated_at": "2026-07-29T12:00:51Z",
+  "status": "completed",
+  "layout_version": "1",
+  "stages": [
+    {
+      "stage": "materialize",
+      "status": "completed",
+      "started_at": "2026-07-29T12:00:00Z",
+      "finished_at": "2026-07-29T12:00:01Z",
+      "message": null,
+      "artifact_paths": ["artifacts/source"]
+    },
+    {
+      "stage": "compile",
+      "status": "completed",
+      "started_at": "2026-07-29T12:00:02Z",
+      "finished_at": "2026-07-29T12:00:20Z",
+      "message": null,
+      "artifact_paths": [
+        "artifacts/compile/forge-build.log",
+        "artifacts/compile/bytecode"
+      ]
+    },
+    {
+      "stage": "static",
+      "status": "completed",
+      "started_at": "2026-07-29T12:00:20Z",
+      "finished_at": "2026-07-29T12:00:40Z",
+      "message": null,
+      "artifact_paths": [
+        "artifacts/static/slither.json",
+        "artifacts/static/findings.json"
+      ]
+    },
+    {
+      "stage": "llm_tests",
+      "status": "skipped",
+      "started_at": "2026-07-29T12:00:40Z",
+      "finished_at": "2026-07-29T12:00:40Z",
+      "message": "No LLM API key",
+      "artifact_paths": []
+    },
+    {
+      "stage": "fuzz",
+      "status": "skipped",
+      "started_at": "2026-07-29T12:00:41Z",
+      "finished_at": "2026-07-29T12:00:41Z",
+      "message": "No tests to run",
+      "artifact_paths": []
+    },
+    {
+      "stage": "finalize",
+      "status": "completed",
+      "started_at": "2026-07-29T12:00:50Z",
+      "finished_at": "2026-07-29T12:00:51Z",
+      "message": null,
+      "artifact_paths": [
+        "artifacts/manifest.json",
+        "artifacts/fingerprint.json"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "artifacts/compile/forge-build.log",
+      "kind": "forge_build_log",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "size_bytes": 120,
+      "content_type": "text/plain",
+      "optional": false,
+      "stage": "compile"
+    },
+    {
+      "path": "artifacts/static/slither.json",
+      "kind": "slither_raw",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "size_bytes": 2048,
+      "content_type": "application/json",
+      "optional": false,
+      "stage": "static"
+    },
+    {
+      "path": "artifacts/static/findings.json",
+      "kind": "findings",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "size_bytes": 512,
+      "content_type": "application/json",
+      "optional": false,
+      "stage": "static"
+    },
+    {
+      "path": "artifacts/fingerprint.json",
+      "kind": "fingerprint",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "size_bytes": 256,
+      "content_type": "application/json",
+      "optional": false,
+      "stage": "finalize"
+    },
+    {
+      "path": "artifacts/events.jsonl",
+      "kind": "events_log",
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "size_bytes": 900,
+      "content_type": "application/x-ndjson",
+      "optional": true,
+      "stage": "finalize"
+    }
+  ],
+  "fingerprint": {
+    "schema_version": "1",
+    "compiler": {
+      "solc_version": "0.8.28",
+      "optimizer_enabled": true,
+      "optimizer_runs": 200,
+      "via_ir": false,
+      "evm_version": null,
+      "remappings": [],
+      "extra": {}
+    },
+    "contracts": [
+      {
+        "name": "VulnerableBank",
+        "source_path": "src/VulnerableBank.sol",
+        "creation_bytecode_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "runtime_bytecode_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "metadata_hash": "0x3333333333333333333333333333333333333333333333333333333333333333"
+      }
+    ],
+    "sources_sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+  },
+  "notes": null
+}

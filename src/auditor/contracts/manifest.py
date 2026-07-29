@@ -143,10 +143,7 @@ class ArtifactManifest(BaseModel):
             created_at=created_at,
             updated_at=created_at,
             status=status,
-            stages=[
-                StageSummary(stage=stage, status=StageRunStatus.PENDING)
-                for stage in JobStage
-            ],
+            stages=[StageSummary(stage=stage, status=StageRunStatus.PENDING) for stage in JobStage],
             artifacts=[],
         )
 

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/md/auditor/schemas/job-event.schema.json",
+  "title": "AuditorJobEvent",
+  "description": "Canonical job event stream envelope (WebSocket frames or artifacts/events.jsonl lines).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "job_id", "seq", "ts", "level", "message"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "stage": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "enum": [
+            "materialize",
+            "compile",
+            "static",
+            "llm_tests",
+            "fuzz",
+            "finalize"
+          ]
+        }
+      ]
+    },
+    "level": {
+      "type": "string",
+      "enum": ["debug", "info", "warn", "error"]
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "progress": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "integer", "minimum": 0, "maximum": 100 }
+      ]
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "terminal": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "enum": ["completed", "failed", "timed_out", "cancelled"]
+        }
+      ]
+    }
+  }
+}

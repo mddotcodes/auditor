@@ -15,9 +15,9 @@ Pragma: `^0.8.20`, SPDX MIT. No external libraries.
 
 | File | Purpose |
 |------|---------|
-| [`artifacts/manifest.example.json`](./artifacts/manifest.example.json) | Draft shape of a future job artifact manifest: `job_id`, stage list, file list with `sha256` placeholders, and a bytecode fingerprint block. |
+| [`artifacts/manifest.example.json`](./artifacts/manifest.example.json) | Example `artifacts/manifest.json` aligned with schema version **1** (see [`schemas/`](../schemas/)). |
 
-These files are **illustrative**. The Phase 1 image only ships toolchain entrypoints (`versions`, `forge`, `slither`, …); the HTTP audit API and real manifest writers are not implemented yet.
+Canonical contracts: [`schemas/artifact-manifest.schema.json`](../schemas/artifact-manifest.schema.json), OpenAPI [`schemas/openapi.yaml`](../schemas/openapi.yaml). The HTTP server is not implemented yet (Phase 5); models live in `auditor.contracts`.
 
 ## Running the image against samples (later)
 

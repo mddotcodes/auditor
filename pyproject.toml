@@ -23,7 +23,9 @@ classifiers = [
   "Topic :: Security",
   "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+  "pydantic>=2.10",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -31,6 +33,11 @@ dev = [
   "pytest-cov>=6.0",
   "ruff>=0.9",
   "mypy>=1.14",
+  "jsonschema>=4.23",
+  "PyYAML>=6.0",
+  "openapi-spec-validator>=0.7",
+  "types-jsonschema>=4.23",
+  "types-PyYAML>=6.0",
 ]
 
 [project.urls]
@@ -45,6 +52,7 @@ packages = ["src/auditor"]
 include = [
   "/src",
   "/tests",
+  "/schemas",
   "/README.md",
   "/LICENSE",
 ]
@@ -84,6 +92,12 @@ pretty = true
 show_error_codes = true
 mypy_path = "src"
 packages = ["auditor"]
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"

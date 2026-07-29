@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/md/auditor/schemas/artifact-manifest.schema.json",
+  "title": "AuditorArtifactManifest",
+  "description": "Job artifact manifest at artifacts/manifest.json. Always written for terminal jobs, including partial/skipped stages.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "job_id",
+    "created_at",
+    "updated_at",
+    "status",
+    "layout_version",
+    "stages",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1" },
+    "job_id": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "status": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "failed",
+        "timed_out",
+        "cancelled"
+      ]
+    },
+    "layout_version": { "type": "string", "const": "1" },
+    "stages": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/stage_summary" }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact_entry" }
+    },
+    "fingerprint": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/fingerprint" }
+      ]
+    },
+    "notes": {
+      "oneOf": [{ "type": "null" }, { "type": "string" }]
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "stage_name": {
+      "type": "string",
+      "enum": [
+        "materialize",
+        "compile",
+        "static",
+        "llm_tests",
+        "fuzz",
+        "finalize"
+      ]
+    },
+    "stage_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "status"],
+      "properties": {
+        "stage": { "$ref": "#/$defs/stage_name" },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "running",
+            "completed",
+            "failed",
+            "skipped",
+            "timed_out"
+          ]
+        },
+        "started_at": {
+          "oneOf": [{ "type": "null" }, { "type": "string", "format": "date-time" }]
+        },
+        "finished_at": {
+          "oneOf": [{ "type": "null" }, { "type": "string", "format": "date-time" }]
+        },
+        "message": {
+          "oneOf": [{ "type": "null" }, { "type": "string" }]
+        },
+        "artifact_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "artifact_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "kind", "sha256", "size_bytes"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path relative to the job base (no .. or absolute)."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "manifest",
+            "pipeline_meta",
+            "forge_build_log",
+            "forge_test_log",
+            "forge_test_json",
+            "slither_raw",
+            "findings",
+            "generated_test",
+            "coverage",
+            "bytecode",
+            "abi",
+            "fingerprint",
+            "source_snapshot",
+            "events_log",
+            "other"
+          ]
+        },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "content_type": { "type": "string" },
+        "optional": { "type": "boolean" },
+        "stage": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/stage_name" }]
+        }
+      }
+    },
+    "compiler_settings": {
+      "type": "object",
+      "properties": {
+        "solc_version": { "type": ["string", "null"] },
+        "optimizer_enabled": { "type": ["boolean", "null"] },
+        "optimizer_runs": { "type": ["integer", "null"] },
+        "via_ir": { "type": ["boolean", "null"] },
+        "evm_version": { "type": ["string", "null"] },
+        "remappings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "extra": { "type": "object" }
+      }
+    },
+    "fingerprint_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "source_path"],
+      "properties": {
+        "name": { "type": "string" },
+        "source_path": { "type": "string" },
+        "creation_bytecode_sha256": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }]
+        },
+        "runtime_bytecode_sha256": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }]
+        },
+        "metadata_hash": {
+          "oneOf": [{ "type": "null" }, { "type": "string" }]
+        }
+      }
+    },
+    "fingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "1" },
+        "compiler": { "$ref": "#/$defs/compiler_settings" },
+        "contracts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/fingerprint_contract" }
+        },
+        "sources_sha256": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{"schema_version":"1","job_id":"019fab70-0000-7000-8000-000000000001","seq":0,"ts":"2026-07-29T12:00:00Z","stage":"materialize","level":"info","message":"Materializing Foundry project","progress":5,"data":{},"terminal":null}
+{"schema_version":"1","job_id":"019fab70-0000-7000-8000-000000000001","seq":1,"ts":"2026-07-29T12:00:02Z","stage":"compile","level":"info","message":"Running forge build","progress":20,"data":{},"terminal":null}
+{"schema_version":"1","job_id":"019fab70-0000-7000-8000-000000000001","seq":2,"ts":"2026-07-29T12:00:20Z","stage":"static","level":"info","message":"Running Slither","progress":45,"data":{},"terminal":null}
+{"schema_version":"1","job_id":"019fab70-0000-7000-8000-000000000001","seq":3,"ts":"2026-07-29T12:00:40Z","stage":"llm_tests","level":"info","message":"Skipping LLM tests (no API key)","progress":55,"data":{"skipped":true},"terminal":null}
+{"schema_version":"1","job_id":"019fab70-0000-7000-8000-000000000001","seq":4,"ts":"2026-07-29T12:00:41Z","stage":"fuzz","level":"info","message":"Skipping fuzz (no generated tests)","progress":60,"data":{"skipped":true},"terminal":null}
+{"schema_version":"1","job_id":"019fab70-0000-7000-8000-000000000001","seq":5,"ts":"2026-07-29T12:00:50Z","stage":"finalize","level":"info","message":"Writing artifact manifest","progress":95,"data":{},"terminal":null}
+{"schema_version":"1","job_id":"019fab70-0000-7000-8000-000000000001","seq":6,"ts":"2026-07-29T12:00:51Z","stage":"finalize","level":"info","message":"Audit completed","progress":100,"data":{},"terminal":"completed"}

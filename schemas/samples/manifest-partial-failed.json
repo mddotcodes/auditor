@@ -1,0 +1,71 @@
+{
+  "schema_version": "1",
+  "job_id": "019fab70-0000-7000-8000-000000000002",
+  "created_at": "2026-07-29T12:00:00Z",
+  "updated_at": "2026-07-29T12:00:15Z",
+  "status": "failed",
+  "layout_version": "1",
+  "stages": [
+    {
+      "stage": "materialize",
+      "status": "completed",
+      "started_at": "2026-07-29T12:00:00Z",
+      "finished_at": "2026-07-29T12:00:01Z",
+      "message": null,
+      "artifact_paths": []
+    },
+    {
+      "stage": "compile",
+      "status": "failed",
+      "started_at": "2026-07-29T12:00:02Z",
+      "finished_at": "2026-07-29T12:00:15Z",
+      "message": "forge build exited with code 1",
+      "artifact_paths": ["artifacts/compile/forge-build.log"]
+    },
+    {
+      "stage": "static",
+      "status": "skipped",
+      "started_at": null,
+      "finished_at": null,
+      "message": "Skipped after compile failure",
+      "artifact_paths": []
+    },
+    {
+      "stage": "llm_tests",
+      "status": "skipped",
+      "started_at": null,
+      "finished_at": null,
+      "message": "Skipped after compile failure",
+      "artifact_paths": []
+    },
+    {
+      "stage": "fuzz",
+      "status": "skipped",
+      "started_at": null,
+      "finished_at": null,
+      "message": "Skipped after compile failure",
+      "artifact_paths": []
+    },
+    {
+      "stage": "finalize",
+      "status": "completed",
+      "started_at": "2026-07-29T12:00:15Z",
+      "finished_at": "2026-07-29T12:00:15Z",
+      "message": "Partial manifest written",
+      "artifact_paths": ["artifacts/manifest.json"]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "artifacts/compile/forge-build.log",
+      "kind": "forge_build_log",
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "size_bytes": 80,
+      "content_type": "text/plain",
+      "optional": false,
+      "stage": "compile"
+    }
+  ],
+  "fingerprint": null,
+  "notes": "Compile failed; later analysis stages skipped. Manifest still valid."
+}

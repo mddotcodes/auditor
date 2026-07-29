@@ -1,0 +1,10 @@
+{
+  "sources": {
+    "src/VulnerableBank.sol": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\ncontract VulnerableBank {}\n"
+  },
+  "options": {
+    "auto_fix_compile": false,
+    "enable_llm_tests": false,
+    "timeout_seconds": 300
+  }
+}
