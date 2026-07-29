@@ -1,0 +1,13 @@
+{
+  "id": "unchecked_call",
+  "min_findings": 1,
+  "tool_any_of": ["slither", "aderyn"],
+  "detector_families": [
+    "unchecked-lowlevel",
+    "unchecked-send",
+    "low-level-calls",
+    "unchecked-transfer"
+  ],
+  "require_compile": true,
+  "notes": "Expect unchecked low-level call / send family when Slither is available."
+}

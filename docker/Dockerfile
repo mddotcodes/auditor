@@ -48,22 +48,27 @@ FROM python:3.12-slim-bookworm AS runtime
 
 ARG FOUNDRY_VERSION=v1.7.1
 ARG SLITHER_VERSION=0.11.6
+ARG ADERYN_VERSION=v0.6.8
 ARG SOLC_SELECT_VERSION=1.2.0
 ARG SOLC_VERSION=0.8.28
+ARG TARGETARCH
 
 LABEL org.opencontainers.image.title="auditor" \
-      org.opencontainers.image.description="Isolated EVM audit engine (Foundry + Slither + Python)" \
+      org.opencontainers.image.description="Isolated EVM audit engine (Foundry + Slither + Aderyn + Python)" \
       org.opencontainers.image.source="https://github.com/md/auditor" \
       auditor.foundry.version="${FOUNDRY_VERSION}" \
       auditor.slither.version="${SLITHER_VERSION}" \
+      auditor.aderyn.version="${ADERYN_VERSION}" \
       auditor.solc.default="${SOLC_VERSION}"
 
-# Minimal runtime deps: git for forge remappings / deps; ca-certs for HTTPS.
-# Foundry binaries are multi-stage copied (no rustc/curl in final layers).
+# Minimal runtime deps: git for forge remappings / deps; ca-certs + curl for Aderyn fetch.
+# Foundry binaries are multi-stage copied (no rustc in final layers).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
+        curl \
         git \
+        xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Foundry binaries
@@ -71,6 +76,24 @@ COPY --from=foundry /opt/foundry/bin/forge /usr/local/bin/forge
 COPY --from=foundry /opt/foundry/bin/cast /usr/local/bin/cast
 COPY --from=foundry /opt/foundry/bin/anvil /usr/local/bin/anvil
 COPY --from=foundry /opt/foundry/bin/chisel /usr/local/bin/chisel
+
+# Aderyn (Cyfrin) — pinned prebuilt binary (complements Slither in static stage)
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) ADERYN_ARCH=x86_64-unknown-linux-gnu ;; \
+      arm64) ADERYN_ARCH=aarch64-unknown-linux-gnu ;; \
+      *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    url="https://github.com/cyfrin/aderyn/releases/download/aderyn-${ADERYN_VERSION}/aderyn-${ADERYN_ARCH}.tar.xz"; \
+    curl -fsSL "$url" -o /tmp/aderyn.tar.xz; \
+    tar -xJf /tmp/aderyn.tar.xz -C /usr/local/bin; \
+    # tarball may nest binary; normalize to /usr/local/bin/aderyn
+    if [ ! -x /usr/local/bin/aderyn ]; then \
+      find /usr/local/bin -type f -name 'aderyn*' -executable | head -1 | xargs -I{} mv {} /usr/local/bin/aderyn; \
+    fi; \
+    chmod +x /usr/local/bin/aderyn; \
+    aderyn --version; \
+    rm -f /tmp/aderyn.tar.xz
 
 # Non-root user with stable uid/gid (Phase 1.2 hardens runtime further)
 RUN groupadd --gid 10001 auditor \
@@ -127,9 +150,22 @@ WORKDIR /work
 
 USER auditor
 
-# Confirm Foundry binaries are executable as non-root. forge auto-downloads
-# solc into ~/.svm on first compile when the version is missing.
-RUN forge --version && cast --version
+# Confirm Foundry binaries are executable as non-root.
+# Pre-warm forge's solc cache (svm) so offline jobs need not download compilers.
+# Prefer 0.8.28 (image default pin for ^0.8.x); also cache 0.8.20 for older pins.
+RUN forge --version && cast --version \
+    && mkdir -p /tmp/svm-warm/src \
+    && printf '%s\n' \
+         '[profile.default]' \
+         'src = "src"' \
+         'out = "out"' \
+         'libs = ["lib"]' \
+         'solc_version = "0.8.28"' \
+         > /tmp/svm-warm/foundry.toml \
+    && printf '%s\n' '// SPDX-License-Identifier: MIT' 'pragma solidity 0.8.28;' 'contract Warm28 {}' \
+         > /tmp/svm-warm/src/Warm.sol \
+    && forge build --root /tmp/svm-warm \
+    && rm -rf /tmp/svm-warm
 
 # Optional: print versions at start when AUDIT_PRINT_VERSIONS=1
 ENV AUDIT_PRINT_VERSIONS=0

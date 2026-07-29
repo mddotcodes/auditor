@@ -1,0 +1,16 @@
+{
+  "id": "unprotected_function",
+  "min_findings": 0,
+  "tool_any_of": ["slither", "aderyn"],
+  "detector_families": [
+    "unprotected-upgrade",
+    "suicidal",
+    "arbitrary-send-eth",
+    "controlled-delegatecall",
+    "reentrancy",
+    "naming-convention"
+  ],
+  "soft_assert": true,
+  "require_compile": true,
+  "notes": "Soft: prefer access-control related findings; compile must succeed. min_findings 0 because detector names vary."
+}

@@ -43,7 +43,7 @@ def test_happy_path_multi_file(tmp_path: Path) -> None:
     assert "src/B.sol" in result.files_written
     assert "test/A.t.sol" in result.files_written
     assert "foundry.toml" in result.files_written
-    assert result.pragma_info.solc_version == "0.8.20"
+    assert result.pragma_info.solc_version == "0.8.28"
     assert result.total_bytes > 0
     assert result.total_lines >= 3
 
@@ -52,7 +52,7 @@ def test_happy_path_multi_file(tmp_path: Path) -> None:
     assert (job.project / "lib").is_dir()
     assert (job.project / "script").is_dir()
     toml = (job.project / "foundry.toml").read_text(encoding="utf-8")
-    assert 'solc_version = "0.8.20"' in toml
+    assert 'solc_version = "0.8.28"' in toml
     assert "offline = true" in toml
 
 

@@ -37,7 +37,7 @@ def test_compatible_pragmas_choose_solc() -> None:
         "src/B.sol": "pragma solidity >=0.8.20 <0.9.0;\ncontract B {}",
     }
     info = analyze_pragmas(sources)
-    assert info.solc_version == "0.8.20"
+    assert info.solc_version == "0.8.28"
     assert info.version_range is not None
     assert "0.8.20" in info.version_range
 

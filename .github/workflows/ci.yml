@@ -29,8 +29,23 @@ jobs:
       - name: Lint
         run: make lint
 
-      - name: Test
+      - name: Test (unit + skip integration without forge)
         run: make test
+
+      - name: Generate test report
+        if: always()
+        run: |
+          if [ -x scripts/gen-test-report.sh ]; then
+            ./scripts/gen-test-report.sh || true
+          fi
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: docs/test-reports/latest.md
+          if-no-files-found: ignore
 
   docker:
     runs-on: ubuntu-latest
@@ -38,12 +53,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build image (if Dockerfile present)
+      - name: Build image
         run: |
-          if [ ! -f docker/Dockerfile ] && [ ! -f Dockerfile ]; then
-            echo "No Dockerfile yet (Phase 1). Skipping image build."
-            exit 0
-          fi
-          DOCKERFILE=docker/Dockerfile
-          if [ ! -f "$DOCKERFILE" ]; then DOCKERFILE=Dockerfile; fi
-          docker build -f "$DOCKERFILE" -t auditor:ci .
+          docker build -f docker/Dockerfile -t auditor:ci .
+
+      - name: Toolchain versions
+        run: docker run --rm auditor:ci versions
+
+      - name: Serve healthz smoke
+        run: |
+          docker run -d --name auditor-api -p 8080:8080 \
+            -e AUDIT_PROFILE=static \
+            -e AUDIT_JOB_ROOT=/work/jobs \
+            auditor:ci serve
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8080/healthz; then
+              echo
+              docker rm -f auditor-api
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs auditor-api || true
+          docker rm -f auditor-api
+          exit 1
+
+      - name: Static audit one corpus fixture
+        run: |
+          # Bridge network so forge can fetch solc if not cached; no LLM keys.
+          docker run --rm \
+            -e AUDIT_PROFILE=static \
+            -e AUDIT_JOB_ROOT=/work/jobs \
+            -v "$PWD/examples/corpus/reentrancy:/corpus:ro" \
+            auditor:ci \
+            auditor-cli run /corpus/src/ReentrancyBank.sol --profile static --no-llm --job-root /work/jobs

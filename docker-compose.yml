@@ -1,10 +1,12 @@
-# Auditor — local contributor runs (Phase 1, no HTTP API)
+# Auditor — local contributor runs
 #
-# Preferred usage (one-shot, hardened):
+# Toolchain smoke:
 #   docker compose run --rm auditor versions
-#   docker compose run --rm auditor forge --version
 #
-# With LLM keys later (bridge network; still no server):
+# HTTP API (profile api — needs host networking for the port):
+#   docker compose --profile api up auditor-api
+#
+# With LLM keys (bridge network):
 #   docker compose --profile llm run --rm auditor-llm versions
 #
 # Optional env file (do not commit secrets):
@@ -49,6 +51,39 @@ services:
       AUDIT_PRINT_VERSIONS: ${AUDIT_PRINT_VERSIONS:-0}
     # Do not set env_file: [.env] — Compose v2 fails if .env is missing.
     # Pass keys with: docker compose --env-file .env run --rm auditor …
+
+  # Profile `api`: HTTP/WebSocket control plane (bridge so the host can connect).
+  auditor-api:
+    profiles: ["api"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: auditor:local
+    command: ["serve"]
+    ports:
+      - "${AUDIT_PORT:-8080}:8080"
+    user: "10001:10001"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 256
+    tmpfs:
+      - /tmp:size=256m,noexec,nosuid,mode=1777
+      - /work:size=2g,exec,nosuid,mode=1777
+      - /artifacts:size=512m,noexec,nosuid,mode=1777
+    environment:
+      AUDIT_TIMEOUT_SECONDS: ${AUDIT_TIMEOUT_SECONDS:-300}
+      AUDIT_JOB_ROOT: ${AUDIT_JOB_ROOT:-/work/jobs}
+      AUDIT_NETWORK_POLICY: ${AUDIT_NETWORK_POLICY:-deny}
+      AUDIT_PROFILE: ${AUDIT_PROFILE:-static}
+      AUDIT_MAX_INFLIGHT_JOBS: ${AUDIT_MAX_INFLIGHT_JOBS:-2}
+      AUDIT_API_TOKEN: ${AUDIT_API_TOKEN:-}
+      AUDIT_HOST: 0.0.0.0
+      AUDIT_PORT: 8080
 
   # Profile `llm`: same hardening, but default bridge network for provider HTTPS.
   # Use only when you intentionally need LLM egress (keys via --env-file .env).

@@ -2,7 +2,13 @@
 
 ## Supported versions
 
-Only the latest `main` branch and the latest tagged release (once releases are published) receive security fixes. Older commits and untagged snapshots are unsupported.
+| Stream | Supported |
+|--------|-----------|
+| Latest git tag (`v*`) / matching GHCR image tag | Yes |
+| Latest `main` (development tip) | Yes (best-effort) |
+| Older tags, commits, or untagged snapshots | No |
+
+Security fixes land on `main` and are included in the next tag. Prefer the **latest published tag** (and its GHCR image) for production use.
 
 ## Reporting a vulnerability
 

@@ -102,15 +102,27 @@ class PipelineRunner:
 
         stages = self.registry.resolve(stage_names)
         n = max(len(stages), 1)
+        # Always leave headroom so finalize can write manifests after long LLM runs.
+        finalize_reserve = min(45.0, max(15.0, budget * 0.12))
 
         try:
             for i, stage in enumerate(stages):
                 if ctx.cancel_requested:
+                    self._run_finalize_only(ctx, stages[i:])
                     self._finish(ctx, TerminalReason.CANCELLED, JobStatus.CANCELLED, "cancelled")
                     return ctx
 
                 elapsed = time.monotonic() - started
-                if elapsed >= budget:
+                is_finalize = stage.name == "finalize"
+                limit = budget if is_finalize else max(0.0, budget - finalize_reserve)
+                if elapsed >= limit and not is_finalize:
+                    self.bus.emit(
+                        ctx.job_id,
+                        f"Reserving time for finalize (elapsed {elapsed:.0f}s)",
+                        stage=JobStage.FINALIZE,
+                        level=EventLevel.WARN,
+                    )
+                    self._run_finalize_only(ctx, stages[i:])
                     self._finish(
                         ctx,
                         TerminalReason.TIMED_OUT,
@@ -118,8 +130,11 @@ class PipelineRunner:
                         f"global timeout {budget:g}s",
                     )
                     return ctx
+                if elapsed >= budget and is_finalize:
+                    # Still try finalize even if slightly over
+                    pass
 
-                remaining = max(1.0, budget - elapsed)
+                remaining = max(1.0, (budget if is_finalize else limit) - elapsed)
                 progress = int(100 * i / n)
                 ctx.set_progress(progress)
                 js = stage.job_stage

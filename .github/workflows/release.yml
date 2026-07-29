@@ -1,0 +1,80 @@
+# Publish the runtime image to GHCR when a version tag is pushed.
+#
+# Image: ghcr.io/<owner>/<repo>:<tag> and :latest
+# Example: git tag v0.1.0 && git push origin v0.1.0
+#
+# Requirements (repository owner / admin):
+#   - Actions → General → Workflow permissions: allow read and write
+#     (or grant packages: write to GITHUB_TOKEN for this workflow)
+#   - Packages: first push may create the package; set visibility as needed
+#
+# Push is soft-failed if login/permissions are missing so the workflow still
+# records a successful local build of the release image.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker:
+    name: Build and push image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image name
+        run: |
+          # GHCR package names must be lowercase
+          repo="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          echo "IMAGE_NAME=ghcr.io/${repo}" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+
+      - name: Build image
+        run: |
+          docker build -f docker/Dockerfile \
+            -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+            -t "${IMAGE_NAME}:latest" \
+            .
+
+      - name: Log in to GHCR
+        id: login
+        continue-on-error: true
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push images
+        id: push
+        if: steps.login.outcome == 'success'
+        continue-on-error: true
+        run: |
+          docker push "${IMAGE_NAME}:${IMAGE_TAG}"
+          docker push "${IMAGE_NAME}:latest"
+
+      - name: Summarize
+        run: |
+          echo "### Release image" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Built: \`${IMAGE_NAME}:${IMAGE_TAG}\` and \`${IMAGE_NAME}:latest\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.login.outcome }}" != "success" ]; then
+            echo "- Push: **skipped** (GHCR login failed — check packages:write / workflow permissions)" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Image built but not pushed: GHCR login failed. Enable package write permissions for GITHUB_TOKEN."
+            exit 0
+          fi
+          if [ "${{ steps.push.outcome }}" != "success" ]; then
+            echo "- Push: **soft-failed** (check package permissions and GHCR access)" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Image built but push soft-failed. Owner must enable package write permissions."
+            exit 0
+          fi
+          echo "- Push: **ok**" >> "$GITHUB_STEP_SUMMARY"
+          echo "Pull: \`docker pull ${IMAGE_NAME}:${IMAGE_TAG}\`" >> "$GITHUB_STEP_SUMMARY"

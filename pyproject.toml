@@ -25,6 +25,9 @@ classifiers = [
 ]
 dependencies = [
   "pydantic>=2.10",
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "certifi>=2024.0",
 ]
 
 [project.optional-dependencies]
@@ -38,7 +41,12 @@ dev = [
   "openapi-spec-validator>=0.7",
   "types-jsonschema>=4.23",
   "types-PyYAML>=6.0",
+  "httpx>=0.28",
 ]
+
+[project.scripts]
+auditor-serve = "auditor.api.app:main"
+auditor-cli = "auditor.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/md/auditor"
@@ -108,6 +116,12 @@ addopts = [
   "--strict-markers",
   "--strict-config",
 ]
+markers = [
+  "integration: needs forge/slither or full pipeline (skipped if tools missing)",
+  "slow: long-running tests",
+]
 filterwarnings = [
   "error",
+  # Starlette TestClient currently warns to prefer httpx2; keep httpx until ecosystem settles.
+  "ignore:Using `httpx` with `starlette.testclient` is deprecated:starlette.exceptions.StarletteDeprecationWarning",
 ]

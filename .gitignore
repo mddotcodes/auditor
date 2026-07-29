@@ -1,6 +1,10 @@
 # Local-only documentation (not part of the public repo)
 docs_local/
 
+# Regenerated test reports (sample stays committed)
+docs/test-reports/latest.md
+docs/test-reports/static-corpus-latest.md
+
 # OS
 .DS_Store
 .AppleDouble

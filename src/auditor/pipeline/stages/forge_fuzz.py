@@ -83,12 +83,28 @@ class ForgeFuzzStage:
             json.dumps(parsed if parsed is not None else {"raw": text[-50000:]}, indent=2),
             encoding="utf-8",
         )
-        ctx.meta["forge_test"] = {
-            "returncode": result.returncode,
-            "ok": result.ok,
-        }
+        from auditor.pipeline.forge_summary import summarize_forge_json
+
+        summary = summarize_forge_json(parsed)
+        summary["returncode"] = result.returncode
+        ctx.meta["forge_test"] = summary
         status = StageRunStatus.COMPLETED if result.ok else StageRunStatus.FAILED
-        msg = "forge test passed" if result.ok else "forge test failed (see artifacts)"
+        if summary.get("total", 0) > 0:
+            msg = f"forge test: {summary['passed']} passed, {summary['failed']} failed" + (
+                f" — {', '.join(summary['failed_names'][:3])}"
+                if summary.get("failed_names")
+                else ""
+            )
+            if result.ok:
+                msg = f"forge test passed ({summary['passed']} tests)"
+        else:
+            msg = "forge test passed" if result.ok else "forge test failed (see artifacts)"
+        bus.emit(
+            ctx.job_id,
+            msg,
+            stage=JobStage.FUZZ,
+            data={"forge_summary": summary},
+        )
         return StageResult(
             status=status,
             message=msg,

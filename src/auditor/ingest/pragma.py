@@ -320,13 +320,25 @@ def extract_pragmas(content: str) -> list[str]:
     return [m.group(1).strip() for m in _PRAGMA_RE.finditer(content)]
 
 
+# Prefer versions commonly pre-cached in the Auditor image (see docker/Dockerfile).
+_PREFERRED_SOLC: tuple[Version, ...] = (
+    Version(0, 8, 28),
+    Version(0, 8, 26),
+    Version(0, 8, 24),
+    Version(0, 8, 20),
+    Version(0, 8, 19),
+)
+
+
 def choose_solc_version(intersection: VersionRange) -> str | None:
     """Pick a concrete solc pin for foundry.toml, or ``None`` for forge auto.
 
-    When a lower bound exists, pin to that version (common for ``^0.8.20`` →
-    ``0.8.20``). Exact pins are returned as-is. Unbounded ranges without a min
-    leave selection to forge.
+    Prefer image-known 0.8.x versions that satisfy the range (so offline
+    containers need not download solc). Fall back to the inclusive lower bound.
     """
+    for pref in _PREFERRED_SOLC:
+        if intersection.contains(pref):
+            return str(pref)
     if intersection.min_v is None:
         return None
     # Strict lower bound: bump patch as a practical pin; else use inclusive min.

@@ -51,7 +51,7 @@ def try_auto_fix_compile(ctx: JobContext, bus: EventBus, *, compiler_log: str) -
         f"SOURCES:\n{''.join(snippets)[:40000]}\n"
     )
     try:
-        reply = complete_text(prompt, max_tokens=4000)
+        reply = complete_text(prompt, max_tokens=4000, role="repair")
     except Exception as exc:
         bus.emit(
             ctx.job_id,

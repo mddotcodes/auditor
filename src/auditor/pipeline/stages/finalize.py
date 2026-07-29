@@ -25,9 +25,11 @@ class FinalizeStage:
         return True, None
 
     def run(self, ctx: JobContext, bus: EventBus) -> StageResult:
+        from auditor.pipeline.findings_tiers import attach_tiers, tier_summary
+
         paths: list[str] = []
-        # Dedupe findings and write
-        ctx.findings.findings = dedup_findings(ctx.findings.findings)
+        # Dedupe + tier labels
+        ctx.findings.findings = attach_tiers(dedup_findings(ctx.findings.findings))
         findings_path = ctx.job_paths.resolve(JOB_LAYOUT.findings)
         findings_path.parent.mkdir(parents=True, exist_ok=True)
         findings_path.write_text(
@@ -35,6 +37,21 @@ class FinalizeStage:
             encoding="utf-8",
         )
         paths.append(JOB_LAYOUT.findings)
+        tiers = tier_summary(ctx.findings)
+        by_tier = tiers.get("by_tier")
+        if not isinstance(by_tier, dict):
+            by_tier = {}
+        bus.emit(
+            ctx.job_id,
+            (
+                "Findings summary: "
+                f"security={by_tier.get('security', 0)} "
+                f"quality={by_tier.get('quality', 0)} "
+                f"informational={by_tier.get('informational', 0)}"
+            ),
+            stage=JobStage.FINALIZE,
+            data={"findings_tiers": tiers},
+        )
 
         # Fingerprint
         bc_dir = ctx.job_paths.resolve(JOB_LAYOUT.bytecode_dir)
@@ -60,6 +77,9 @@ class FinalizeStage:
             "status": ctx.status.value,
             "findings_by_severity": ctx.findings.counts_by_severity(),
             "findings_by_tool": ctx.findings.counts_by_tool(),
+            "findings_by_tier": tiers.get("by_tier"),
+            "security_top": tiers.get("security_top"),
+            "forge_test": ctx.meta.get("forge_test"),
             "tools_run": ctx.findings.tools_run,
             "tools_failed": ctx.findings.tools_failed,
             "sourcify": sourcify_meta,

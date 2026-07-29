@@ -23,26 +23,35 @@ print_versions() {
   else
     echo "slither: (not found)"
   fi
+  if command -v aderyn >/dev/null 2>&1; then
+    aderyn --version 2>&1 | head -n1 | sed 's/^/aderyn:  /'
+  else
+    echo "aderyn:  (not found)"
+  fi
   python -c "import auditor; print(f'auditor: {auditor.__version__}')" 2>&1
 }
 
 print_help() {
   cat <<'EOF'
-Auditor image entrypoint (Phase 1 — no HTTP API yet)
+Auditor image entrypoint
 
 Usage:
-  docker run --rm auditor:local [versions|help|<command> ...]
+  docker run --rm -p 8080:8080 auditor:local [versions|help|serve|<command> ...]
 
 Commands:
   versions   Print forge, cast, slither, python, and auditor versions (default)
+  serve      Start HTTP/WebSocket API on AUDIT_PORT (default 8080)
   help       Show this help
 
-Any other args are exec'd as a command (e.g. forge --version, bash).
+Any other args are exec'd as a command (e.g. forge --version, auditor-cli metrics …).
 
 Environment:
   AUDIT_PRINT_VERSIONS=1   Print versions before running a non-versions command
-  AUDIT_TIMEOUT_SECONDS    Job timeout hint (default 300; used by future runtime)
+  AUDIT_TIMEOUT_SECONDS    Job wall-clock timeout (default 300)
   AUDIT_JOB_ROOT           Job workspace root (default /work/jobs)
+  AUDIT_API_TOKEN          Optional API bearer / X-API-Token
+  AUDIT_MAX_INFLIGHT_JOBS  Concurrent audit jobs (default 2)
+  AUDIT_HOST / AUDIT_PORT  Bind address for serve (0.0.0.0:8080)
 EOF
 }
 
@@ -60,6 +69,10 @@ case "$1" in
   versions)
     print_versions
     exit 0
+    ;;
+  serve)
+    shift
+    exec python -m auditor.api.app "$@"
     ;;
   help|--help|-h)
     print_help

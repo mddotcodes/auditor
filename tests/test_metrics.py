@@ -122,7 +122,7 @@ def test_compute_metrics_from_sources() -> None:
     assert m.approx_cyclomatic == approx_cyclomatic(_SAMPLE_BANK) + approx_cyclomatic(_SAMPLE_LIB)
     char_total = len(_SAMPLE_BANK) + len(_SAMPLE_LIB)
     assert m.approx_tokens == (char_total + 3) // 4
-    assert m.pragma_hint == "0.8.20"
+    assert m.pragma_hint == "0.8.28"
     assert set(m.tools_available) == {
         "forge",
         "slither",
@@ -183,7 +183,7 @@ def test_compute_metrics_from_project_dir(tmp_path: Path) -> None:
     assert m.file_count == 2
     assert m.loc_src_only == count_loc((tmp_path / "src" / "Main.sol").read_text())
     assert m.approx_cyclomatic >= 1
-    assert m.pragma_hint == "0.8.20"
+    assert m.pragma_hint == "0.8.28"
 
 
 def test_compute_metrics_sources_override_project_dir(tmp_path: Path) -> None:
@@ -195,7 +195,7 @@ def test_compute_metrics_sources_override_project_dir(tmp_path: Path) -> None:
     memory = {"src/Mem.sol": "pragma solidity ^0.8.19;\ncontract Mem {}\n"}
     m = compute_metrics(sources=memory, project_dir=tmp_path)
     assert m.file_count == 1
-    assert m.pragma_hint == "0.8.19"
+    assert m.pragma_hint == "0.8.28"  # preferred pin within caret range
 
 
 def test_probe_tools_uses_which() -> None:
@@ -214,7 +214,7 @@ def test_metrics_to_dict_and_request_helper() -> None:
     d = run_metrics_from_request(sources)
     assert isinstance(d, dict)
     assert d["file_count"] == 1
-    assert d["pragma_hint"] == "0.8.20"
+    assert d["pragma_hint"] == "0.8.20"  # exact pin stays exact
     assert "tools_available" in d
     assert set(d.keys()) == {
         "loc_total",

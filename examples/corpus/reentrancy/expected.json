@@ -1,0 +1,8 @@
+{
+  "id": "reentrancy",
+  "min_findings": 1,
+  "tool_any_of": ["slither", "aderyn"],
+  "detector_families": ["reentrancy", "reentrancy-eth", "reentrancy-no-eth", "reentrancy-benign"],
+  "require_compile": true,
+  "notes": "Expect at least one reentrancy-family finding when Slither is available."
+}

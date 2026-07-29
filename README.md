@@ -1,168 +1,213 @@
 # Auditor
 
-**Auditor** is a self-contained engine that audits Solidity smart contracts and streams the results as structured technical output.
+**Auditor** is a local-first engine that audits Solidity contracts and writes machine-readable artifacts.
 
-Point it at your contract (or a small Foundry project), and it will:
+Point it at a `.sol` file or small Foundry tree and it will materialize a project, compile with Foundry, run static analysis and metamorphic heuristics, optionally generate LLM-assisted tests, fuzz with Forge, and finalize with a bytecode fingerprint.
 
-1. **Compile** with Foundry  
-2. **Scan** with [Slither](https://github.com/crytic/slither) for known vulnerability classes  
-3. **Generate** fuzz and invariant tests with an LLM (optional — your API key)  
-4. **Run** those tests under Foundry  
-5. **Emit** machine-readable artifacts: findings JSON, generated `.t.sol` files, coverage, and a bytecode fingerprint for later on-chain matching  
+## Quickstart (< 5 minutes)
 
-Everything runs inside one Docker image so the toolchain is pinned and your host stays clean.
+### 1. Docker audit (recommended — no host forge/slither)
 
-## What you get
-
-| Output | Description |
-|--------|-------------|
-| Static findings | Normalized Slither results (reentrancy, access control, etc.) plus raw tool logs |
-| Generated tests | Foundry fuzz / invariant tests targeting state-changing functions |
-| Test report | Pass/fail summary, failing inputs when available, coverage when enabled |
-| Bytecode fingerprint | Compiler settings + bytecode / metadata hashes for exact-match verification after deploy |
-| Live progress | Stage updates over HTTP + WebSocket while a job runs |
-
-## Who it’s for
-
-- Developers who want a **local, repeatable** audit pipeline without assembling Foundry + Slither + scripts by hand  
-- Teams that want **raw technical artifacts** they can pipe into CI, custom UIs, or their own review process  
-- Anyone who wants **optional LLM-assisted test generation** without baking a vendor into the core scanner  
-
-## Quickstart
-
-> Status: early development — **HTTP audit API is not shipped yet**. You can build the local image and verify the pinned toolchain today (no proprietary services required).
+Requires **Docker** only. Builds `auditor:local` on first use if missing.
 
 ```bash
-make build-image                 # needs Docker; tags auditor:local
-./scripts/run-local.sh           # hardened run → versions (default)
-# or:
-docker compose run --rm auditor versions
-docker compose run --rm auditor forge --version
+# Static-only (no API key needed)
+./scripts/user-audit.sh examples/contracts/SafeCounter.sol
+
+# Explicit profile / timeout / host job directory
+./scripts/user-audit.sh --profile static --timeout 300 \
+  --job-root ./work/user-jobs \
+  examples/contracts/SafeCounter.sol
+
+# LLM-enabled (default profile when a key is set; loads .env if present)
+cp .env.example .env   # set OPENROUTER_API_KEY=… and optional AUDIT_LLM_* dual settings
+./scripts/user-audit.sh examples/corpus/reentrancy/src/ReentrancyBank.sol
+# or force static even with keys:
+./scripts/user-audit.sh --no-llm examples/contracts/SafeCounter.sol
 ```
 
-Hardened flags (read-only root, dropped caps, network none, cgroup limits) match [`docs/security/runtime-defaults.md`](docs/security/runtime-defaults.md). Optional LLM keys: copy [`.env.example`](.env.example) → `.env` and use `./scripts/run-local.sh --llm …` or the Compose profile `llm` when provider egress is needed later.
+On success the script prints the **host** path to job artifacts under `--job-root` (default `./work/user-jobs/<job_id>/`):
 
-Sample contracts and a draft artifact manifest live under [`examples/`](examples/).
+| Path | What it is |
+|------|------------|
+| `artifacts/manifest.json` | Job artifact index |
+| `artifacts/static/findings.json` | Normalized findings (Slither, Aderyn, metamorphic, …) |
+| `artifacts/fingerprint.json` | Bytecode / compiler fingerprint for later matching |
 
-### Intended API UX (not implemented yet)
+Exit codes: **`0`** completed · **`1`** job failed / timed out / cancelled · **`2`** usage error (bad path, invalid profile, …).
+
+Image override: `AUDITOR_IMAGE` (default `auditor:local`). Build manually: `make build-image`.
+
+### 2. Docker serve (HTTP API)
 
 ```bash
+make build-image
 docker run --rm -p 8080:8080 \
-  -e OPENROUTER_API_KEY=sk-… \   # optional; omit for static-only
-  ghcr.io/<org>/auditor:latest
+  --memory=2g --cpus=2 \
+  -e AUDIT_PROFILE=static \
+  -e AUDIT_JOB_ROOT=/work/jobs \
+  auditor:local serve
 ```
+
+Hardened run flags: [`docs/security/runtime-defaults.md`](docs/security/runtime-defaults.md). Low-level image checks: [`./scripts/run-local.sh`](scripts/run-local.sh).
+
+### 3. HTTP API (curl)
+
+With the server up:
 
 ```bash
 curl -s -X POST http://localhost:8080/v1/audit \
   -H 'Content-Type: application/json' \
   -d '{
     "sources": {
-      "src/Token.sol": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n..."
-    }
+      "src/Token.sol": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\ncontract Token {}"
+    },
+    "options": { "enable_llm_tests": false }
   }'
-# → { "job_id": "…" }
+# → { "job_id": "…", "status": "queued" }
+
+curl -s http://localhost:8080/v1/jobs/<job_id>
+# Live events: WebSocket /v1/ws/jobs/<job_id>
+curl -s http://localhost:8080/healthz
 ```
 
-```text
-WS  /v1/ws/jobs/{job_id}
-GET /v1/jobs/{job_id}
-```
+OpenAPI contract: [`schemas/openapi.yaml`](schemas/openapi.yaml).
 
-### CLI (planned)
+---
 
-```bash
-auditor-cli run ./src/Token.sol
-auditor-cli run ./my-foundry-project
-auditor-cli metrics ./src/Token.sol   # quick size / complexity estimate
-```
+## What you get
 
-## Modes
+| Output | Description |
+|--------|-------------|
+| Static findings | Slither + Aderyn (when installed), normalized into `findings.json` |
+| Metamorphic signals | Offline heuristics (SELFDESTRUCT / DELEGATECALL / CREATE2-style patterns) |
+| Generated tests | Optional LLM-written Foundry fuzz / invariant tests (`default` / `deep`) |
+| Fuzz report | Forge test results under `artifacts/fuzz/` when fuzz runs |
+| Bytecode fingerprint | Compiler settings + hashes for post-deploy matching |
+| Live progress | Stage events on CLI stdout (or JSON lines); HTTP + WebSocket on the server |
 
-| Mode | Needs | Behavior |
-|------|--------|----------|
-| **Static** | Docker only | Compile + Slither + fingerprint |
-| **Full** | Docker + LLM API key | Static path, then generate and run fuzz/invariant tests |
-| **Metrics** | Docker only | Fast pre-check: LOC, complexity estimate, rough token estimate — no full audit |
-
-Supported LLM providers (via env): OpenAI, Anthropic, OpenRouter.
+Sample contracts: [`examples/contracts/`](examples/contracts/). Sample artifact shapes: [`examples/artifacts/`](examples/artifacts/), schemas under [`schemas/`](schemas/).
 
 ## Pipeline
 
 ```text
-input (sources | project | gist)
+input (.sol | project dir | API sources / gist)
         │
         ▼
-   materialize Foundry project
+   materialize  →  Foundry project on disk
         │
         ▼
-   forge build  ──fail──►  optional LLM auto-fix (≤3)  ──or──► fail job
+   compile      →  forge build
         │
         ▼
-   Slither (JSON findings)
+   static       →  Slither ∥ Aderyn → findings.json
         │
         ▼
-   [if API key] LLM writes .t.sol  ──compile feedback loop ≤3──► forge test / fuzz
+   metamorphic  →  mutability / morph heuristics
         │
         ▼
-   artifacts + bytecode fingerprint
+   [default+] llm_tests  →  optional LLM .t.sol generation
+        │
+        ▼
+   [default+] fuzz       →  forge test / fuzz
+        │
+        ▼
+   [deep]     echidna    →  when available / properties exist
+        │
+        ▼
+   finalize     →  manifest + fingerprint.json
 ```
 
-Hard wall-clock timeout on every job so runaway fuzz or bad tests cannot hang forever.
+Jobs have a wall-clock timeout (`AUDIT_TIMEOUT_SECONDS`, default `300`) so runaway fuzz cannot hang forever.
 
-## Configuration
+### Profiles
+
+| Profile | Stages (beyond materialize → compile) | Typical use |
+|---------|----------------------------------------|-------------|
+| **`static`** | static → metamorphic → finalize | Offline / CI / no API keys |
+| **`default`** | + llm_tests (if key) + forge fuzz | Local deeper run |
+| **`deep`** | + echidna when available | Heavier analysis |
+
+- **`user-audit.sh`**: defaults to **`static`** with no LLM key; **`default`** when a key is present. Override with `--profile` or force offline with `--no-llm`.
+- **Host CLI** defaults to **`static`** unless you pass `--profile` or set `AUDIT_PROFILE`.
+- **Server / env** `AUDIT_PROFILE` defaults to **`default`** when set via the env helper; pin `AUDIT_PROFILE=static` for deterministic no-LLM deploys.
+
+## First LLM run (optional)
+
+Costs real API spend. Start with **one** contract and inspect artifacts before more runs.
+
+**Plan → code (optional dual):** not consensus. A stronger model writes a **test plan**; a cheaper model **implements** Foundry tests and compile repairs. See [`.env.example`](.env.example).
+
+```bash
+cp .env.example .env
+# OPENROUTER_API_KEY=…
+# AUDIT_LLM_DUAL=true
+# AUDIT_LLM_PLAN_MODEL=deepseek/deepseek-v4-pro
+# AUDIT_LLM_CODE_MODEL=deepseek/deepseek-v4-flash
+set -a && source .env && set +a
+
+# Preferred: Docker dual-profile helper (calls user-audit.sh)
+./scripts/first-llm-run.sh examples/corpus/reentrancy/src/ReentrancyBank.sol
+# equivalent:
+./scripts/user-audit.sh --profile default examples/corpus/reentrancy/src/ReentrancyBank.sol
+```
+
+Provider selection (first key wins): `OPENROUTER_API_KEY` → `OPENAI_API_KEY` → `ANTHROPIC_API_KEY`.
+
+## Configuration (common)
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `OPENAI_API_KEY` | — | OpenAI for test generation / auto-fix |
-| `ANTHROPIC_API_KEY` | — | Anthropic |
-| `OPENROUTER_API_KEY` | — | OpenRouter |
-| `AUDIT_TIMEOUT_SECONDS` | `300` | Kill the job after this many seconds |
-| `AUTO_FIX_COMPILE` | `false` | Let the LLM attempt compile fixes (max 3) |
+| `OPENROUTER_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | — | LLM test generation |
+| `AUDIT_LLM_MODEL` | provider default | Model id override |
+| `AUDIT_LLM_DUAL` / `AUDIT_LLM_PLAN_MODEL` / `AUDIT_LLM_CODE_MODEL` | see `.env.example` | Plan→code dual models |
+| `AUDIT_PROFILE` | see Profiles | Pipeline depth |
+| `AUDIT_TIMEOUT_SECONDS` | `300` | Job wall-clock limit |
+| `AUDIT_JOB_ROOT` | `./work/jobs` (host CLI) / `/work/jobs` (image) | Job workspaces inside the engine |
+| `--job-root` (`user-audit.sh`) | `./work/user-jobs` | Host directory for Docker-mounted jobs |
+| `AUDITOR_IMAGE` | `auditor:local` | Docker image for user-audit / run-local |
+| `AUDIT_HOST` / `AUDIT_PORT` | `0.0.0.0` / `8080` | HTTP bind for `auditor-serve` |
+| `AUDIT_API_TOKEN` | — | Optional bearer token for the API |
 
-Use a local `.env` for keys; never commit them. See [`.env.example`](.env.example).
+Never commit secrets. Copy [`.env.example`](.env.example) to `.env`.
 
-## Security defaults
+## Security
 
-Contracts and generated tests are untrusted code. The container is built to run them under constraints:
+Contracts and generated tests are untrusted code. Prefer the container with dropped caps, memory/CPU limits, and network deny for compile/test. `user-audit.sh` uses network none for static runs and only enables bridge when an LLM profile needs provider egress. Details: [`docs/security/runtime-defaults.md`](docs/security/runtime-defaults.md) and [`SECURITY.md`](SECURITY.md).
 
-- Non-root user  
-- Per-job work directories (no sharing between concurrent jobs)  
-- Configurable CPU / memory limits via normal Docker flags  
-- Network off for compile/test by default; LLM calls only when you supply a key  
+## Status
 
-Recommended local run (Phase 1 — toolchain only; full flag list in [`docs/security/runtime-defaults.md`](docs/security/runtime-defaults.md)):
+Runnable today: Docker image `auditor:local` via [`scripts/user-audit.sh`](scripts/user-audit.sh), HTTP API (`serve`), OpenAPI at [`schemas/openapi.yaml`](schemas/openapi.yaml), pipeline profiles above, and example contracts under [`examples/`](examples/). Host Python package (`auditor-cli`, `auditor-serve`) is available for development.
 
-```bash
-./scripts/run-local.sh versions
-# equivalent compose:
-docker compose run --rm auditor versions
-```
+Published registry images (e.g. `ghcr.io/OWNER/auditor`) may appear later — until then build with `make build-image`.
+
+Further reading: [`docs/`](docs/) (ingest, dependencies, security, ADRs), [`schemas/`](schemas/), [`docker/README.md`](docker/README.md).
 
 ## Development
+
+Host install is for contributors (tests, lint, local CLI without Docker). End users should prefer **Docker / `user-audit.sh`** above.
 
 ```bash
 git clone https://github.com/<org>/auditor.git
 cd auditor
+python3 -m venv .venv && source .venv/bin/activate
+make install    # pip install -e ".[dev]"  — requires Python 3.12+
+make lint
+make test
+make build-image
 
-make lint          # format + static checks
-make test          # unit / integration
-make build-image   # local Docker image
+# Optional: host CLI (needs forge / slither / aderyn on PATH for full stages)
+auditor-cli metrics examples/contracts/SafeCounter.sol
+auditor-cli run examples/contracts/SafeCounter.sol
+# CLI defaults to --profile static (no LLM). Explicit and equivalent:
+auditor-cli run examples/contracts/SafeCounter.sol --profile static --no-llm
+# Without Docker serve:
+auditor-serve   # binds AUDIT_HOST / AUDIT_PORT, default 0.0.0.0:8080
 ```
 
-Toolchain and layout land with the first implementation PRs.
+Useful host flags: `--profile static|default|deep`, `--job-root DIR`, `--json`, `--no-llm`, `--timeout SECONDS`. See `auditor-cli --help`.
 
-## Roadmap (high level)
-
-- [ ] Runnable Docker image + `POST /v1/audit`  
-- [ ] Slither findings + artifact manifest  
-- [ ] WebSocket job stream  
-- [ ] LLM test generation + fuzz execution  
-- [ ] CLI  
-- [ ] Published GHCR image and semver tags  
-
-## Contributing
-
-Bug reports and PRs are welcome. For larger design changes, open an issue first so we can align on the public API and artifact schemas.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## License
 

@@ -1,5 +1,5 @@
 # Auditor — developer task runner (see docs/decisions/0001-orchestration-language.md)
-.PHONY: help install fmt lint test build-image clean
+.PHONY: help install fmt lint test test-report static-corpus build-image release-dry-run clean
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -25,6 +25,12 @@ lint: ## Ruff lint + format check + mypy
 test: ## Run pytest
 	$(PYTHON) -m pytest
 
+test-report: ## Run pytest and write docs/test-reports/latest.md
+	./scripts/gen-test-report.sh
+
+static-corpus: ## Free static corpus batch (Docker --profile static --no-llm; no API keys)
+	./scripts/batch-static-corpus.sh
+
 build-image: ## Build local Docker image (docker/Dockerfile → auditor:local)
 	@if [ ! -f docker/Dockerfile ] && [ ! -f Dockerfile ]; then \
 		echo "No Dockerfile yet (Phase 1). Skipping image build."; \
@@ -33,6 +39,16 @@ build-image: ## Build local Docker image (docker/Dockerfile → auditor:local)
 		if [ ! -f "$$DOCKERFILE" ]; then DOCKERFILE=Dockerfile; fi; \
 		docker build -f "$$DOCKERFILE" -t $(IMAGE_NAME):$(IMAGE_TAG) .; \
 	fi
+
+release-dry-run: ## Build release image locally only (no tag push, no GHCR)
+	@if [ ! -f docker/Dockerfile ]; then \
+		echo "Missing docker/Dockerfile"; exit 1; \
+	fi
+	docker build -f docker/Dockerfile \
+		-t $(IMAGE_NAME):$(IMAGE_TAG) \
+		-t $(IMAGE_NAME):release-dry-run \
+		.
+	@echo "Built $(IMAGE_NAME):$(IMAGE_TAG) and $(IMAGE_NAME):release-dry-run (local only; not pushed)"
 
 clean: ## Remove caches and build artifacts
 	rm -rf .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov dist build

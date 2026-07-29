@@ -1,0 +1,9 @@
+{
+  "id": "weird_erc20",
+  "min_findings": 0,
+  "tool_any_of": ["slither", "aderyn"],
+  "detector_families": [],
+  "require_compile": true,
+  "soft_assert": true,
+  "notes": "Compile regression for hostile ERC20 shapes; static findings optional/weak."
+}
