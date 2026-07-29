@@ -42,7 +42,7 @@
 |----|----------|--------|-------------|
 | A1 | Infinite loop in fuzz test / malicious contract | CPU hang | Wall-clock job timeout; cgroup CPU; kill process **group** |
 | A2 | Fork bomb in generated test setup | PID / memory exhaustion | `--pids-limit`; memory cgroup; timeout |
-| A3 | Write to host paths via path traversal | Host integrity | Path sandbox in ingestion (later); RO root; job-only mounts |
+| A3 | Write to host paths via path traversal | Host integrity | Path sandbox in `auditor.ingest`; RO root; job-only mounts |
 | A4 | SSRF / data exfil via `forge` hooks or tests | Secret/network abuse | Default `--network=none`; LLM egress only on demand |
 | A5 | Container breakout via kernel bug + caps | Host compromise | `--cap-drop=ALL`; `no-new-privileges`; no `--privileged`; no Docker socket |
 | A6 | LLM auto-fix rewrites outside workdir | Supply-chain / host files | Apply patches only under job root (pipeline invariant) |

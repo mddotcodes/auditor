@@ -8,6 +8,7 @@ Sample inputs and artifact shapes for local development. Self-contained Solidity
 |------|---------|
 | [`contracts/VulnerableBank.sol`](./contracts/VulnerableBank.sol) | Small bank with a classic reentrancy-friendly `withdraw` (external call before balance clear). Useful later for Slither / fuzz demos. |
 | [`contracts/SafeCounter.sol`](./contracts/SafeCounter.sol) | Trivial owned counter — relatively clean baseline. |
+| [`contracts/OzToken.sol`](./contracts/OzToken.sol) | ERC20 + Ownable using `@openzeppelin/contracts` — offline vendor/remapping demo. |
 
 Pragma: `^0.8.20`, SPDX MIT. No external libraries.
 

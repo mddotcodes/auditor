@@ -77,6 +77,10 @@ network_mode: none   # override when LLM egress is required
 | `AUDIT_READ_ONLY_ROOT` | `true` | Expect read-only root |
 | `AUDIT_DROP_CAPABILITIES` | `true` | Expect `--cap-drop=ALL` |
 | `AUDIT_NO_NEW_PRIVILEGES` | `true` | Expect `no-new-privileges` |
+| `AUDIT_MAX_SOURCE_BYTES` | `2000000` | Max total UTF-8 bytes for inline sources (ingest) |
+| `AUDIT_MAX_SOURCE_FILES` | `200` | Max files in an inline sources map (ingest) |
+| `AUDIT_MAX_FILE_BYTES` | `512000` | Max UTF-8 bytes per source file (ingest) |
+| `AUDIT_MAX_SOURCE_LOC` | `50000` | Max estimated lines across sources (ingest) |
 
 ## Network policy by phase
 

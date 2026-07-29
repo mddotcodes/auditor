@@ -85,6 +85,8 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     AUDIT_TIMEOUT_SECONDS=300 \
     AUDIT_JOB_ROOT=/work/jobs \
+    AUDIT_VENDOR_ROOT=/opt/auditor/vendor \
+    AUDIT_DEPENDENCY_MODE=strict \
     FOUNDRY_DIR=/home/auditor/.foundry \
     XDG_CONFIG_HOME=/home/auditor/.config \
     PATH="/usr/local/bin:/home/auditor/.foundry/bin:${PATH}"
@@ -92,9 +94,11 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /tmp/build
 
 # Install Slither (pinned) + solc-select with a default solc for offline-ish basic runs.
-# Then install the project package (includes src/auditor/security/*).
+# Then install the project package (includes src/auditor/security/* + deps).
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
+# Offline Solidity libs (forge-std, OpenZeppelin) — see docs/dependencies.md
+COPY vendor /opt/auditor/vendor
 
 RUN pip install --no-cache-dir \
         "slither-analyzer==${SLITHER_VERSION}" \
@@ -103,7 +107,8 @@ RUN pip install --no-cache-dir \
     && solc-select use "${SOLC_VERSION}" \
     && pip install --no-cache-dir . \
     && rm -rf /tmp/build /root/.cache /home/auditor/.cache \
-    && mkdir -p /tmp/build
+    && mkdir -p /tmp/build \
+    && chmod -R a+rX /opt/auditor/vendor
 
 # Entrypoint
 COPY docker/entrypoint.sh /usr/local/bin/auditor-entrypoint
