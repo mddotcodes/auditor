@@ -30,15 +30,27 @@ Everything runs inside one Docker image so the toolchain is pinned and your host
 
 ## Quickstart
 
-> Status: early development — the image and API are not published yet. The flow below is the intended UX.
+> Status: early development — **HTTP audit API is not shipped yet**. You can build the local image and verify the pinned toolchain today (no proprietary services required).
+
+```bash
+make build-image                 # needs Docker; tags auditor:local
+./scripts/run-local.sh           # hardened run → versions (default)
+# or:
+docker compose run --rm auditor versions
+docker compose run --rm auditor forge --version
+```
+
+Hardened flags (read-only root, dropped caps, network none, cgroup limits) match [`docs/security/runtime-defaults.md`](docs/security/runtime-defaults.md). Optional LLM keys: copy [`.env.example`](.env.example) → `.env` and use `./scripts/run-local.sh --llm …` or the Compose profile `llm` when provider egress is needed later.
+
+Sample contracts and a draft artifact manifest live under [`examples/`](examples/).
+
+### Intended API UX (not implemented yet)
 
 ```bash
 docker run --rm -p 8080:8080 \
   -e OPENROUTER_API_KEY=sk-… \   # optional; omit for static-only
   ghcr.io/<org>/auditor:latest
 ```
-
-Submit a contract:
 
 ```bash
 curl -s -X POST http://localhost:8080/v1/audit \
@@ -51,14 +63,10 @@ curl -s -X POST http://localhost:8080/v1/audit \
 # → { "job_id": "…" }
 ```
 
-Stream progress:
-
 ```text
 WS  /v1/ws/jobs/{job_id}
 GET /v1/jobs/{job_id}
 ```
-
-When the job finishes, fetch artifacts (findings, tests, fingerprint) from the job result.
 
 ### CLI (planned)
 
@@ -111,7 +119,7 @@ Hard wall-clock timeout on every job so runaway fuzz or bad tests cannot hang fo
 | `AUDIT_TIMEOUT_SECONDS` | `300` | Kill the job after this many seconds |
 | `AUTO_FIX_COMPILE` | `false` | Let the LLM attempt compile fixes (max 3) |
 
-Use a local `.env` for keys; never commit them. A `.env.example` will ship with the first runnable release.
+Use a local `.env` for keys; never commit them. See [`.env.example`](.env.example).
 
 ## Security defaults
 
@@ -122,14 +130,12 @@ Contracts and generated tests are untrusted code. The container is built to run 
 - Configurable CPU / memory limits via normal Docker flags  
 - Network off for compile/test by default; LLM calls only when you supply a key  
 
-Recommended local run:
+Recommended local run (Phase 1 — toolchain only; full flag list in [`docs/security/runtime-defaults.md`](docs/security/runtime-defaults.md)):
 
 ```bash
-docker run --rm -p 8080:8080 \
-  --memory=2g --cpus=2 \
-  --read-only --tmpfs /tmp --tmpfs /work \
-  -e OPENROUTER_API_KEY=… \
-  ghcr.io/<org>/auditor:latest
+./scripts/run-local.sh versions
+# equivalent compose:
+docker compose run --rm auditor versions
 ```
 
 ## Development

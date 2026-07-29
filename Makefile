@@ -25,7 +25,7 @@ lint: ## Ruff lint + format check + mypy
 test: ## Run pytest
 	$(PYTHON) -m pytest
 
-build-image: ## Build local Docker image (Dockerfile lands in Phase 1)
+build-image: ## Build local Docker image (docker/Dockerfile → auditor:local)
 	@if [ ! -f docker/Dockerfile ] && [ ! -f Dockerfile ]; then \
 		echo "No Dockerfile yet (Phase 1). Skipping image build."; \
 	else \

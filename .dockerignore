@@ -1,0 +1,56 @@
+# Build context hygiene — keep `docker build` fast and free of secrets/caches.
+
+# VCS / local-only
+.git
+.gitignore
+.gitattributes
+docs_local
+
+# Python envs & caches
+.venv
+venv
+env
+__pycache__
+*.py[cod]
+*$py.class
+*.egg-info
+.eggs
+dist
+build
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+.tox
+.nox
+*.egg
+
+# Editors / OS
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Tests (image is runtime; re-add if CI needs tests inside the image)
+tests
+
+# Docs beyond packaging needs (README.md is required by pyproject and is NOT ignored)
+docs
+*.md
+!README.md
+!LICENSE
+!docker/README.md
+
+# Nested docker noise
+docker/.gitkeep
+
+# Misc
+.env
+.env.*
+!.env.example
+*.log
+tmp
+.cache

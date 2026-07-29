@@ -23,3 +23,8 @@ We will acknowledge reports as soon as practical and work with you on disclosure
 Auditor executes **untrusted Solidity** (and related Foundry project inputs) inside a pipeline that compiles, analyzes, and may generate and run tests. Issues involving sandbox escape, insufficient isolation, resource exhaustion, timeout bypass, path traversal into host mounts, or injection into tool invocations are security-relevant and should be reported privately as above.
 
 Do not include secrets (API keys, tokens, private keys) in issues, PRs, or sample inputs committed to the repository.
+
+## Further reading
+
+- [Threat model](docs/security/threat-model.md) — assets, abuse cases, residual risk  
+- [Runtime defaults](docs/security/runtime-defaults.md) — Docker/K8s flags, env vars, network policy  

@@ -1,0 +1,114 @@
+# Auditor — local contributor runs (Phase 1, no HTTP API)
+#
+# Preferred usage (one-shot, hardened):
+#   docker compose run --rm auditor versions
+#   docker compose run --rm auditor forge --version
+#
+# With LLM keys later (bridge network; still no server):
+#   docker compose --profile llm run --rm auditor-llm versions
+#
+# Optional env file (do not commit secrets):
+#   cp .env.example .env
+#   docker compose --env-file .env run --rm auditor versions
+#
+# Image build: make build-image  (or: docker compose build)
+#
+# Security posture mirrors docs/security/runtime-defaults.md
+
+services:
+  # Default offline path — network_mode: none (static / forge / slither).
+  auditor:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: auditor:local
+    # Prefer `docker compose run` over `up`; this service is not a long-running server.
+    # `versions` exits immediately — good for smoke checks.
+    command: ["versions"]
+    user: "10001:10001"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 256
+    network_mode: none
+    tmpfs:
+      - /tmp:size=256m,noexec,nosuid,mode=1777
+      - /work:size=2g,exec,nosuid,mode=1777
+      - /artifacts:size=512m,noexec,nosuid,mode=1777
+    environment:
+      AUDIT_TIMEOUT_SECONDS: ${AUDIT_TIMEOUT_SECONDS:-300}
+      AUDIT_TERM_GRACE_SECONDS: ${AUDIT_TERM_GRACE_SECONDS:-2}
+      AUDIT_JOB_ROOT: ${AUDIT_JOB_ROOT:-/work/jobs}
+      AUDIT_NETWORK_POLICY: ${AUDIT_NETWORK_POLICY:-deny}
+      AUDIT_CPU_LIMIT: ${AUDIT_CPU_LIMIT:-2}
+      AUDIT_MAX_PIDS: ${AUDIT_MAX_PIDS:-256}
+      AUDIT_PRINT_VERSIONS: ${AUDIT_PRINT_VERSIONS:-0}
+    # Do not set env_file: [.env] — Compose v2 fails if .env is missing.
+    # Pass keys with: docker compose --env-file .env run --rm auditor …
+
+  # Profile `llm`: same hardening, but default bridge network for provider HTTPS.
+  # Use only when you intentionally need LLM egress (keys via --env-file .env).
+  auditor-llm:
+    profiles: ["llm"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: auditor:local
+    command: ["versions"]
+    user: "10001:10001"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 256
+    # Default bridge (not network_mode: none). Prefer operator allowlists in prod.
+    tmpfs:
+      - /tmp:size=256m,noexec,nosuid,mode=1777
+      - /work:size=2g,exec,nosuid,mode=1777
+      - /artifacts:size=512m,noexec,nosuid,mode=1777
+    environment:
+      AUDIT_TIMEOUT_SECONDS: ${AUDIT_TIMEOUT_SECONDS:-300}
+      AUDIT_TERM_GRACE_SECONDS: ${AUDIT_TERM_GRACE_SECONDS:-2}
+      AUDIT_JOB_ROOT: ${AUDIT_JOB_ROOT:-/work/jobs}
+      AUDIT_NETWORK_POLICY: ${AUDIT_NETWORK_POLICY:-allow_llm}
+      AUDIT_CPU_LIMIT: ${AUDIT_CPU_LIMIT:-2}
+      AUDIT_MAX_PIDS: ${AUDIT_MAX_PIDS:-256}
+      AUDIT_PRINT_VERSIONS: ${AUDIT_PRINT_VERSIONS:-0}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+
+  # Profile `dev`: long-running placeholder for interactive `exec` / attach.
+  # Not required for normal contributor smoke checks.
+  auditor-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: auditor:local
+    command: ["sleep", "infinity"]
+    user: "10001:10001"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 256
+    network_mode: none
+    tmpfs:
+      - /tmp:size=256m,noexec,nosuid,mode=1777
+      - /work:size=2g,exec,nosuid,mode=1777
+      - /artifacts:size=512m,noexec,nosuid,mode=1777
+    environment:
+      AUDIT_TIMEOUT_SECONDS: ${AUDIT_TIMEOUT_SECONDS:-300}
+      AUDIT_JOB_ROOT: ${AUDIT_JOB_ROOT:-/work/jobs}
+      AUDIT_NETWORK_POLICY: ${AUDIT_NETWORK_POLICY:-deny}
