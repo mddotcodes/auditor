@@ -39,16 +39,18 @@ class JobStage(StrEnum):
 
     Order for a full run::
 
-        materialize → compile → static → llm_tests → fuzz → finalize
+        materialize → compile → static → metamorphic → llm_tests → fuzz → echidna → finalize
 
-    ``llm_tests`` and ``fuzz`` may be skipped when no LLM key / static-only mode.
+    Optional stages (``llm_tests``, ``fuzz``, ``echidna``) may be skipped by profile.
     """
 
     MATERIALIZE = "materialize"
     COMPILE = "compile"
     STATIC = "static"
+    METAMORPHIC = "metamorphic"
     LLM_TESTS = "llm_tests"
     FUZZ = "fuzz"
+    ECHIDNA = "echidna"
     FINALIZE = "finalize"
 
 
@@ -90,8 +92,12 @@ class ArtifactKind(StrEnum):
     FORGE_TEST_LOG = "forge_test_log"
     FORGE_TEST_JSON = "forge_test_json"
     SLITHER_RAW = "slither_raw"
+    ADERYN_RAW = "aderyn_raw"
+    METAMORPHIC_RAW = "metamorphic_raw"
     FINDINGS = "findings"
     GENERATED_TEST = "generated_test"
+    ECHIDNA_RAW = "echidna_raw"
+    MYTHRIL_RAW = "mythril_raw"
     COVERAGE = "coverage"
     BYTECODE = "bytecode"
     ABI = "abi"

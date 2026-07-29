@@ -25,6 +25,8 @@ class JobLayout:
     abi_dir: str = "artifacts/compile/abi"
     static_dir: str = "artifacts/static"
     slither_raw: str = "artifacts/static/slither.json"
+    aderyn_raw: str = "artifacts/static/aderyn.json"
+    metamorphic_raw: str = "artifacts/static/metamorphic.json"
     findings: str = "artifacts/static/findings.json"
     llm_tests_dir: str = "artifacts/llm_tests"
     generated_tests_dir: str = "artifacts/llm_tests/generated"

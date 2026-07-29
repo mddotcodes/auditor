@@ -32,8 +32,10 @@
             "materialize",
             "compile",
             "static",
+            "metamorphic",
             "llm_tests",
             "fuzz",
+            "echidna",
             "finalize"
           ]
         }
