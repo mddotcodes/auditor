@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e ".[dev]"
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: make test
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image (if Dockerfile present)
+        run: |
+          if [ ! -f docker/Dockerfile ] && [ ! -f Dockerfile ]; then
+            echo "No Dockerfile yet (Phase 1). Skipping image build."
+            exit 0
+          fi
+          DOCKERFILE=docker/Dockerfile
+          if [ ! -f "$DOCKERFILE" ]; then DOCKERFILE=Dockerfile; fi
+          docker build -f "$DOCKERFILE" -t auditor:ci .

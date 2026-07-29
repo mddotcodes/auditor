@@ -160,4 +160,4 @@ Bug reports and PRs are welcome. For larger design changes, open an issue first 
 
 ## License
 
-TBD before the first public release (likely MIT or Apache-2.0).
+[MIT](LICENSE)
